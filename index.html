@@ -72,7 +72,7 @@
 </head>
 <body>
 
-  <!-- all 11 aurora themes share this canvas -->
+  <!-- all 12 aurora themes share this canvas -->
   <div class="theme" id="t-fx"><canvas id="fx-canvas"></canvas></div>
 
   <div class="topbar">
@@ -89,6 +89,7 @@
       <option value="morph">Morph Field</option>
       <option value="tide">Tidal Drift</option>
       <option value="pulse">Center Pulse</option>
+      <option value="whirl">Whirl Curtains</option>
     </select>
   </div>
 
@@ -99,12 +100,12 @@
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   /* ============================================================
-     GEMINI AURORA COLLECTION — 11 themes, one palette.
+     GEMINI AURORA COLLECTION — 12 themes, one palette.
      All use Google's 4 signature colors, interpolated as a
      continuous cyclic gradient (blue → green → yellow → red).
      Motion styles differ purely by the math driving the flow.
      ============================================================ */
-  const FX_THEMES = ['curtains','flow','orbit','spiral','rings','sweep','breathe','ripples','morph','tide','pulse'];
+  const FX_THEMES = ['curtains','flow','orbit','spiral','rings','sweep','breathe','ripples','morph','tide','pulse','whirl'];
   let activeFx = null, fxT0 = null, lastFxT = 0, pendingFxFrame = false;
 
   function applyTheme(name) {
@@ -372,6 +373,48 @@
         const wa = 0.5 + 0.5 * (sin2 * Math.cos(ph) + cos2 * Math.sin(ph));
         const p = (r * 2 + t * 0.1 + wa * 0.3 * sf + m * 0.15) % 1;
         emit(i, p, 0.28 + (0.5 + 0.5 * Math.cos(r * 7 - t * 1.4)) * 0.62 * Math.exp(-r * 2.1));
+      }
+    }
+  }};
+
+  /* ── 12 · Whirl Curtains — Aurora Curtains inside Orbit's rotating frame,
+         rippled by Rain Ripples' drifting drops ── */
+  FX.whirl = { frame(t) {
+    const th = t * 0.09, cs = Math.cos(th), sn = Math.sin(th);
+    const S = [];
+    for (let s = 0; s < 3; s++) {
+      S.push({
+        x: 0.5 + 0.38 * Math.sin(t * 0.27 + s * 2.1),
+        y: 0.5 + 0.3 * Math.cos(t * 0.23 + s * 1.3)
+      });
+    }
+    for (let y = 0, i = 0; y < H; y++) {
+      const v = y / H;
+      for (let x = 0; x < W; x++, i += 4) {
+        const u = x / W;
+        const ux = (u - 0.5) * cs - (v - 0.5) * sn;
+        const uy = (u - 0.5) * sn + (v - 0.5) * cs;
+        // Aurora Curtains: layered curtains, rotated with the orbit frame
+        let a = 0;
+        for (let k = 0; k < 4; k++) {
+          a += Math.sin(ux * (5 + k * 1.3) + t * (0.55 + k * 0.11)
+            + Math.sin(uy * 5 + t * 0.4 + k * 1.7) * 2.2);
+        }
+        a /= 4;
+        // Rain Ripples: 3 drifting drops, ring interference field
+        let wave = 0;
+        for (let s = 0; s < 3; s++) {
+          const d = Math.hypot(u - S[s].x, v - S[s].y) * 5;
+          wave += Math.sin(d - t * 2.4 + s * 1.1) / (1 + d * d * 0.5);
+        }
+        wave /= 3;
+        const m = fbm(u * 2, v * 2 + t * 0.05, 3);
+        // Orbit axis drives the palette; ripples nudge it locally
+        const p = (ux * 1.3 + uy * 0.5 + wave * 0.2 + m * 0.16 + t * 0.02) % 1;
+        // curtain glow blended with ripple rings, soft vertical fade
+        const bw = 0.5 + 0.5 * wave;
+        const b = Math.pow(a * 0.5 + 0.5, 1.9);
+        emit(i, p, 0.24 + Math.min(1, b * 0.62 + bw * 0.34) * 0.78 * (1 - v * 0.3));
       }
     }
   }};
