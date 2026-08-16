@@ -74,6 +74,10 @@
   #t-liquid { background: #05060d; }
   #liquid-canvas { position: fixed; inset: 0; width: 100%; height: 100%; }
 
+  /* --- Math FX themes (10 engines) --- */
+  #t-fx { background: #05060d; }
+  #t-fx canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+
   /* ============ UI ============ */
   .topbar {
     position: fixed;
@@ -145,6 +149,7 @@
   <div class="theme" id="t-aurora"></div>
   <div class="theme" id="t-prism"></div>
   <div class="theme" id="t-liquid"><canvas id="liquid-canvas"></canvas></div>
+  <div class="theme" id="t-fx"><canvas id="fx-canvas"></canvas></div>
 
   <div class="topbar">
     <label for="theme-select">Theme</label>
@@ -159,6 +164,16 @@
       <option value="aurora">Aurora Mesh — dynamic gradient</option>
       <option value="prism">Prism Shift — dynamic gradient</option>
       <option value="liquid">Liquid Canvas — dynamic gradient</option>
+      <option value="plasma">Plasma Interference — dynamic · math</option>
+      <option value="fbmflow">Fractal Flow — dynamic · math</option>
+      <option value="warp">Domain Warp — dynamic · math</option>
+      <option value="voronoi">Voronoi Drift — dynamic · math</option>
+      <option value="metaballs">Metaballs — dynamic · math</option>
+      <option value="ripples">Ripple Interference — dynamic · math</option>
+      <option value="curtains">Aurora Curtains — dynamic · math</option>
+      <option value="reaction">Reaction-Diffusion — dynamic · math</option>
+      <option value="julia">Julia Drift — dynamic · math</option>
+      <option value="epicycles">Orbital Harmonics — dynamic · math</option>
     </select>
   </div>
 
@@ -171,8 +186,15 @@
   );
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  /* FX engine state (engines registered below) */
+  const FX_THEMES = ['plasma','fbmflow','warp','voronoi','metaballs','ripples','curtains','reaction','julia','epicycles'];
+  let activeFx = null, fxT0 = null, lastFxT = 0, pendingFxFrame = false;
+
   function applyTheme(name) {
-    for (const [key, el] of layers) el.classList.toggle('active', key === name);
+    const isFx = FX_THEMES.includes(name);
+    for (const [key, el] of layers) {
+      el.classList.toggle('active', key === name || (key === 'fx' && isFx));
+    }
     const isLight = name === 'ivory' || name === 'white';
     const isEmber = name === 'ember';
     document.body.style.color = isLight ? '#111318' : '#e8eaf0';
@@ -182,6 +204,8 @@
       hint.style.color = 'rgba(255,255,255,0.75)';
     }
     localStorage.setItem('blank-theme', name);
+    activeFx = FX_THEMES.includes(name) ? name : null;
+    fxT0 = null; lastFxT = 0; pendingFxFrame = true;
   }
 
   select.addEventListener('change', () => applyTheme(select.value));
@@ -247,6 +271,363 @@
   document.addEventListener('visibilitychange', () => {
     running = !document.hidden && !reduce;
     if (running) start = undefined; // avoid a time jump on resume
+  });
+
+  /* ============================================================
+     FX ENGINE — 10 mathematical gradient engines.
+     Each renders per-pixel math into a low-res RGBA buffer,
+     upscaled to full screen with smoothing (shader-style look).
+     ============================================================ */
+  const FX_W = 240, FX_H = 135;
+  const pixel = document.createElement('canvas');
+  pixel.width = FX_W; pixel.height = FX_H;
+  const pctx = pixel.getContext('2d');
+  const idata = pctx.createImageData(FX_W, FX_H);
+  const buf = idata.data;
+  const fxCanvas = document.getElementById('fx-canvas');
+  const fxCtx = fxCanvas.getContext('2d');
+
+  function hash2(x, y) {
+    let h = Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263);
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    h ^= h >>> 16;
+    return (h >>> 0) / 4294967296;
+  }
+  function vnoise(x, y) {
+    const xi = Math.floor(x), yi = Math.floor(y);
+    const xf = x - xi, yf = y - yi;
+    const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+    const a = hash2(xi, yi), b = hash2(xi + 1, yi);
+    const c = hash2(xi, yi + 1), d = hash2(xi + 1, yi + 1);
+    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+  }
+  function fbm(x, y, oct) {
+    let s = 0, amp = 0.5, f = 1;
+    for (let i = 0; i < oct; i++) { s += amp * vnoise(x * f, y * f); f *= 2; amp *= 0.5; }
+    return s;
+  }
+  function hslc(h, s, l) { // h 0-360, s/l 0-100 → [r,g,b] 0-255
+    h = ((h % 360) + 360) % 360;
+    s /= 100; l /= 100;
+    const c = (1 - Math.abs(2 * l - 1)) * s;
+    const hp = h / 60;
+    const x = c * (1 - Math.abs(hp % 2 - 1));
+    let r = 0, g = 0, b = 0;
+    if (hp < 1) [r, g] = [c, x]; else if (hp < 2) [r, g] = [x, c];
+    else if (hp < 3) [g, b] = [c, x]; else if (hp < 4) [g, b] = [x, c];
+    else if (hp < 5) [r, b] = [x, c]; else [r, b] = [c, x];
+    const m = l - c / 2;
+    return [(r + m) * 255, (g + m) * 255, (b + m) * 255];
+  }
+  function put(buf, i, c) { buf[i] = c[0]; buf[i + 1] = c[1]; buf[i + 2] = c[2]; buf[i + 3] = 255; }
+
+  const FX = {};
+
+  /* 1 ── Plasma Interference: superposition of travelling sine waves
+          + Euclidean ring waves + 1D phase fold. */
+  FX.plasma = { frame(t) {
+    const W = FX_W, H = FX_H;
+    for (let y = 0, i = 0; y < H; y++) {
+      const v = y / H;
+      for (let x = 0; x < W; x++, i += 4) {
+        const u = x / W;
+        const d = Math.hypot(u - 0.5, v - 0.5);
+        const val = (Math.sin(u * 6 + t) + Math.sin(v * 8 - t * 0.7)
+          + Math.sin((u + v) * 5 + t * 1.3) + Math.sin(d * 10 - t * 2)
+          + Math.sin(d * 20 + u * 4 + t * 0.5) + Math.sin(v * 3 - Math.cos(u * 4 + t * 0.6))) / 6;
+        const hue = 205 + val * 90 + d * 140 + t * 12;
+        put(buf, i, hslc(hue, 85, 26 + (val * 0.5 + 0.5) * 46));
+      }
+    }
+  }};
+
+  /* 2 ── Fractal Flow: 5-octave fbm fields, one field warping the other,
+          luminance breathing with a slow sine. */
+  FX.fbmflow = { frame(t) {
+    const W = FX_W, H = FX_H;
+    const ox = t * 0.045, oy = t * 0.035;
+    for (let y = 0, i = 0; y < H; y++) {
+      const v = y / H;
+      for (let x = 0; x < W; x++, i += 4) {
+        const u = x / W;
+        const n1 = fbm(u * 3.2 + ox, v * 3.2 - oy, 5);
+        const n2 = fbm(u * 3.2 - t * 0.03 + n1, v * 3.2 + t * 0.05 + n1 * 0.6, 5);
+        const m = (n1 + n2) * 0.5;
+        const pulse = 0.6 + 0.4 * Math.sin(t * 0.12);
+        put(buf, i, hslc(205 + m * 150 + t * 6, 82 + m * 14, 15 + m * 55 * pulse));
+      }
+    }
+  }};
+
+  /* 3 ── Domain Warp: classic recursive warp — q1 displaces q2's inputs,
+          q2 displaces q3's inputs. Deep turbulent swirls. */
+  FX.warp = { frame(t) {
+    const W = FX_W, H = FX_H;
+    for (let y = 0, i = 0; y < H; y++) {
+      const v = y / H;
+      for (let x = 0; x < W; x++, i += 4) {
+        const u = x / W;
+        const q1 = fbm(u * 3 + t * 0.04, v * 3 + t * 0.03, 4);
+        const q2 = fbm(u * 3 + q1 * 2.1 - t * 0.025, v * 3 + q1 * 1.8 + t * 0.02, 4);
+        const q3 = fbm(u * 3 + q2 * 2.3, v * 3 + q2 * 2.1, 4);
+        const val = q3 * 0.7 + q2 * 0.3;
+        const l = 16 + (val * val * 2 + 0.45) * 52;
+        put(buf, i, hslc(175 + val * 190 + t * 10, 84, Math.min(82, l)));
+      }
+    }
+  }};
+
+  /* 4 ── Voronoi Drift: seeds orbit their cells on sine paths; distance
+          gradient shading + cell-edge ridges + hashed per-cell hue. */
+  FX.voronoi = { frame(t) {
+    const W = FX_W, H = FX_H, NX = 7, NY = 5;
+    for (let y = 0, i = 0; y < H; y++) {
+      const v = y / H;
+      for (let x = 0; x < W; x++, i += 4) {
+        const u = x / W;
+        const u2 = u * NX, v2 = v * NY;
+        const ci = Math.floor(u2), cj = Math.floor(v2);
+        let d1 = 9, d2 = 9, bi = ci, bj = cj;
+        for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+          const xc = ci + di, yc = cj + dj;
+          const sx = xc + 0.5 + Math.sin(t * 0.18 + xc * 2.7 + yc * 1.3) * 0.32;
+          const sy = yc + 0.5 + Math.cos(t * 0.15 + yc * 2.1 + xc * 1.7) * 0.32;
+          const dx = u2 - sx, dy = v2 - sy, dd = dx * dx + dy * dy;
+          if (dd < d1) { d2 = d1; d1 = dd; bi = xc; bj = yc; }
+          else if (dd < d2) d2 = dd;
+        }
+        const e1 = Math.sqrt(d1), edge = Math.sqrt(d2) - e1;
+        const hue = hash2(bi * 13, bj * 7) * 360 + t * 8;
+        const l = 14 + (1 - Math.min(1, e1 / 0.9)) * 52 - Math.min(1, edge * 3) * 18;
+        put(buf, i, hslc(hue, 75, Math.max(8, l)));
+      }
+    }
+  }};
+
+  /* 5 ── Metaballs: iso-surface of 8 weighted inverse-square potential
+          fields on multi-frequency orbits; exponent-curved luminance. */
+  FX.metaballs = { frame(t) {
+    const W = FX_W, H = FX_H;
+    const b = [];
+    for (let k = 0; k < 8; k++) {
+      const ang = t * (0.11 + k * 0.017) + k * 0.79;
+      b.push({
+        x: 0.5 + Math.sin(ang) * 0.34 + Math.sin(t * 0.23 + k * 1.9) * 0.12,
+        y: 0.5 + Math.cos(ang * 1.3 + k * 0.6) * 0.30 + Math.cos(t * 0.19 + k * 2.4) * 0.10,
+        r2: 0.012 + Math.sin(t * 0.31 + k * 2.0) * 0.004
+      });
+    }
+    for (let y = 0, i = 0; y < H; y++) {
+      const v = y / H;
+      for (let x = 0; x < W; x++, i += 4) {
+        const u = x / W;
+        let sum = 0;
+        for (let k = 0; k < 8; k++) {
+          const dx = u - b[k].x, dy = v - b[k].y;
+          sum += b[k].r2 / (dx * dx + dy * dy + b[k].r2 * 0.6);
+        }
+        const iso = sum / 3.2;
+        const l = 12 + Math.pow(Math.min(1, iso), 1.8) * 64;
+        const hue = iso > 0.62 ? 285 + (iso - 0.62) * 140 : 208 + iso * 95;
+        put(buf, i, hslc(hue + t * 6, 88, l));
+      }
+    }
+  }};
+
+  /* 6 ── Ripple Interference: expanding ring waves from 4 Lissajous-travelling
+          sources, amplitude damped by 1/(1+d²) — classic interference. */
+  FX.ripples = { frame(t) {
+    const W = FX_W, H = FX_H;
+    const S = [];
+    for (let k = 0; k < 4; k++) {
+      const ang = t * (0.2 + k * 0.05) + k * 1.57;
+      S.push({ x: 0.5 + 0.4 * Math.sin(ang * 1.2 + k * 0.9), y: 0.5 + 0.35 * Math.cos(ang + k * 1.1) });
+    }
+    for (let y = 0, i = 0; y < H; y++) {
+      const v = y / H;
+      for (let x = 0; x < W; x++, i += 4) {
+        const u = x / W;
+        let wsum = 0;
+        for (let k = 0; k < 4; k++) {
+          const d = Math.hypot(u - S[k].x, v - S[k].y) * 3.2;
+          wsum += Math.sin(d * 7 - t * 4.2 + k * 1.1) / (1 + d * d * 2.2);
+        }
+        const val = wsum / 2.2;
+        put(buf, i, hslc(140 + val * 180 + t * 14, 80, 14 + (val * 0.5 + 0.5) * 52));
+      }
+    }
+  }};
+
+  /* 7 ── Aurora Curtains: 4 phase-locked sine curtains with vertical field
+          wobble + slow fbm turbulence; brightness falls off with depth. */
+  FX.curtains = { frame(t) {
+    const W = FX_W, H = FX_H;
+    for (let y = 0, i = 0; y < H; y++) {
+      const v = y / H;
+      for (let x = 0; x < W; x++, i += 4) {
+        const u = x / W;
+        let a = 0;
+        for (let k = 0; k < 4; k++) {
+          a += Math.sin(u * (7 + k * 1.8) + t * (0.55 + k * 0.11)
+            + Math.sin(v * 3.5 + t * 0.4 + k * 1.7) * 2.6);
+        }
+        a /= 4;
+        const m = fbm(u * 2.6, v * 2.3 + t * 0.07, 3);
+        const b = Math.pow(a * 0.5 + 0.5, 3);
+        const l = b * (1.2 - v * 0.9) * 66;
+        put(buf, i, hslc(165 + m * 130 + t * 9, 85 + m * 10, l));
+      }
+    }
+  }};
+
+  /* 8 ── Reaction-Diffusion: Gray–Scott model on a 160×90 grid.
+    A + 2B → 3B, B → ∅, with feed/kill; 5-point laplacian, wrap boundaries.
+    True self-organizing gradients — patterns emerge, never repeat. */
+  (function () {
+    const RW = 160, RH = 90, N = RW * RH;
+    let A = new Float32Array(N), B = new Float32Array(N), T = new Float32Array(N);
+    const F = 0.055, kf = 0.062, dA = 1.0, dB = 0.5;
+    function seed() {
+      for (let i = 0; i < N; i++) { A[i] = 1; B[i] = 0; }
+      for (let j = 30; j < 60; j++) for (let i = 60; i < 100; i++) {
+        if (hash2(i, j) < 0.45) B[j * RW + i] = 1;
+      }
+    }
+    function step() {
+      for (let i = 0; i < N; i++) {
+        const x = i % RW, y = (i / RW) | 0;
+        const xl = (x + RW - 1) % RW, xr = (x + 1) % RW;
+        const yu = (y + RH - 1) % RH, yd = (y + 1) % RH;
+        const a = A[i], b = B[i];
+        const lapA = (A[y * RW + xl] + A[y * RW + xr] + A[yu * RW + x] + A[yd * RW + x]) * 0.05 - a * 0.2;
+        const lapB = (B[y * RW + xl] + B[y * RW + xr] + B[yu * RW + x] + B[yd * RW + x]) * 0.05 - b * 0.2;
+        const abb = a * b * b;
+        T[i] = a + (dA * lapA - abb + F * (1 - a));
+        B[i] = b + (dB * lapB + abb - (F + kf) * b);
+      }
+      A.set(T);
+      if (Math.random() < 0.02) { // ambient seed keeps it evolving forever
+        const p = (Math.random() * N) | 0;
+        A[p] = 1; B[p] = 1;
+      }
+    }
+    seed();
+    FX.reaction = {
+      prewarm() { for (let s = 0; s < 500; s++) step(); },
+      step,
+      frame() {
+        for (let s = 0; s < 4; s++) step();
+        for (let y = 0, i = 0; y < RH; y++) for (let x = 0; x < RW; x++, i += 4) {
+          const a = A[y * RW + x];
+          put(buf, i, hslc(195 + (1 - a) * 65 + B[y * RW + x] * 40, 85, 8 + (1 - a) * 56 + B[y * RW + x] * 24));
+        }
+      }
+    };
+  })();
+
+  /* 9 ── Julia Drift: escape-time iteration z ← z² + c over the complex plane;
+    the c parameter and zoom wander slowly. Smooth iteration counts → hue. */
+  FX.julia = { frame(t) {
+    const W = FX_W, H = FX_H;
+    const cre = -0.7885 + 0.11 * Math.sin(t * 0.05);
+    const cim = 0.38 + 0.14 * Math.cos(t * 0.04);
+    const zoom = 1 + 0.12 * Math.sin(t * 0.03);
+    for (let y = 0, i = 0; y < H; y++) {
+      const py0 = (y / H - 0.5) * 2.6 / zoom;
+      for (let x = 0; x < W; x++, i += 4) {
+        let zr = (x / W - 0.5) * 3.1 / zoom, zi = py0;
+        let zr2 = zr * zr, zi2 = zi * zi, iter = 0;
+        while (zr2 + zi2 < 64 && iter < 48) {
+          zi = 2 * zr * zi + cim;
+          zr = zr2 - zi2 + cre;
+          zr2 = zr * zr; zi2 = zi * zi;
+          iter++;
+        }
+        if (iter < 48) {
+          const mag = Math.sqrt(zr2 + zi2);
+          const sm = iter - Math.log2(Math.log2(mag));
+          put(buf, i, hslc(200 + sm * 26 + t * 22, 88, 8 + sm * 3.4));
+        } else {
+          put(buf, i, hslc(262, 60, 5 + (1 - Math.abs(py0)) * 5));
+        }
+      }
+    }
+  }};
+
+  /* 10 ── Orbital Harmonics: 7 golden-angle-spaced lights on 3-harmonic
+    epicycle orbits; per-pixel additive gaussian falloff (screen-blend optics). */
+  FX.epicycles = { frame(t) {
+    const W = FX_W, H = FX_H, PHI = 2.3999632;
+    const L = [];
+    for (let k = 0; k < 7; k++) {
+      const ph = k * PHI;
+      L.push({
+        x: 0.5 + 0.36 * Math.sin(t * 0.11 + ph) + 0.12 * Math.sin(t * 0.37 + 2 * ph) + 0.06 * Math.sin(t * 0.71 + 3 * ph),
+        y: 0.5 + 0.36 * Math.cos(t * 0.13 + ph) + 0.12 * Math.cos(t * 0.41 + 2 * ph) + 0.06 * Math.cos(t * 0.73 + 3 * ph),
+        s: 0.1 + 0.05 * Math.sin(t * 0.29 + k * 1.5),
+        hue: k * 137.5
+      });
+    }
+    for (let y = 0, i = 0; y < H; y++) {
+      const v = y / H;
+      for (let x = 0; x < W; x++, i += 4) {
+        const u = x / W;
+        let gsum = 0, hueSum = 0;
+        for (let k = 0; k < 7; k++) {
+          const dx = u - L[k].x, dy = v - L[k].y;
+          const g = Math.exp(-(dx * dx + dy * dy) / (2 * L[k].s * L[k].s));
+          gsum += g; hueSum += g * L[k].hue;
+        }
+        const hue = hueSum / gsum + t * 10;
+        const l = 6 + (1 - Math.exp(-gsum * 1.4)) * 72;
+        put(buf, i, hslc(hue, 90, l));
+      }
+    }
+  }};
+
+  function fitFx() {
+    if (fxCanvas.width !== innerWidth || fxCanvas.height !== innerHeight) {
+      fxCanvas.width = innerWidth; fxCanvas.height = innerHeight;
+    }
+  }
+  /* Render loop — brand new combo takes time back up where it left off;
+     pauses when hidden or reduced motion. */
+  function fxFrame(ts) {
+    if (activeFx && !reduceMotion && !document.hidden) {
+      if (fxT0 === null) fxT0 = ts - lastFxT;
+      const t = (ts - fxT0) / 1000;
+      FX[activeFx].frame(t);
+      pctx.putImageData(idata, 0, 0);
+      fitFx();
+      fxCtx.imageSmoothingEnabled = true;
+      fxCtx.drawImage(pixel, 0, 0, innerWidth, innerHeight);
+      lastFxT = t * 1000;
+    }
+    requestAnimationFrame(fxFrame);
+  }
+  /* One static frame (used in reduced-motion mode) */
+  function drawFxOnce(name) {
+    const f = FX[name];
+    if (!f) return;
+    if (name === 'reaction') f.prewarm();
+    f.frame(0);
+    pctx.putImageData(idata, 0, 0);
+    fitFx();
+    fxCtx.imageSmoothingEnabled = true;
+    fxCtx.drawImage(pixel, 0, 0, innerWidth, innerHeight);
+  }
+
+  if (reduceMotion) {
+    requestAnimationFrame(function idle() {
+      if (activeFx && pendingFxFrame) { drawFxOnce(activeFx); pendingFxFrame = false; }
+      requestAnimationFrame(idle);
+    });
+  } else {
+    FX.reaction.prewarm(); // develop the pattern once so it looks alive instantly
+    requestAnimationFrame(fxFrame);
+  }
+  addEventListener('resize', () => {
+    if (reduceMotion && activeFx) drawFxOnce(activeFx);
   });
 </script>
 </body>
