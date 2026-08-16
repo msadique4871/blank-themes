@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blank Screen · Theme Selector</title>
+<style>
+  :root {
+    --fg-light: #e8eaf0;
+    --fg-dark: #111318;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    font-family: "Inter", -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: #0b0e1a;
+    color: var(--fg-light);
+    overflow: hidden;
+    transition: background 0.6s ease, color 0.6s ease;
+  }
+
+  /* ============ THEME LAYERS ============ */
+  .theme { position: fixed; inset: 0; opacity: 0; pointer-events: none; transition: opacity 0.6s ease; }
+  .theme.active { opacity: 1; }
+
+  /* --- Solid themes --- */
+  #t-midnight { background: #0b0e1a; }
+  #t-black    { background: #000000; }
+  #t-slate    { background: #1f2937; }
+  #t-ivory    { background: #f4efe6; color: #1f2937 !important; }
+  #t-white    { background: #ffffff; color: #111318 !important; }
+
+  /* --- Static gradients --- */
+  #t-ocean {
+    background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
+  }
+  #t-ember {
+    background: linear-gradient(135deg, #ff512f 0%, #f09819 55%, #dd2476 100%);
+  }
+
+  /* --- Dynamic gradient #1: CSS mesh (radial blobs drifting) --- */
+  #t-aurora {
+    background:
+      radial-gradient(40% 50% at 20% 30%, #5b8cff55, transparent 60%),
+      radial-gradient(45% 55% at 80% 20%, #b05bff55, transparent 60%),
+      radial-gradient(50% 60% at 50% 80%, #2de1c255, transparent 60%),
+      #0b0e1a;
+    background-size: 300% 300%;
+    animation: auroramove 24s ease-in-out infinite;
+  }
+  @keyframes auroramove {
+    0%, 100% { background-position: 0% 0%, 100% 0%, 50% 100%; }
+    33%      { background-position: 40% 30%, 60% 40%, 70% 60%; }
+    66%      { background-position: 20% 70%, 30% 20%, 30% 80%; }
+  }
+
+  /* --- Dynamic gradient #2: hue-rotating prism linear gradient --- */
+  #t-prism {
+    background: linear-gradient(115deg,
+      #ff6b6b 0%, #feca57 20%, #48dbfb 40%, #c56cf0 60%, #ff6b6b 80%, #feca57 100%);
+    background-size: 300% 300%;
+    animation: prismmove 18s ease-in-out infinite;
+  }
+  @keyframes prismmove {
+    0%, 100% { background-position: 0% 50%; filter: hue-rotate(0deg); }
+    25%      { background-position: 50% 100%; }
+    50%      { background-position: 100% 50%; filter: hue-rotate(120deg); }
+    75%      { background-position: 50% 0%; }
+  }
+
+  /* --- Dynamic gradient #3: liquid canvas blobs (JS-driven) --- */
+  #t-liquid { background: #05060d; }
+  #liquid-canvas { position: fixed; inset: 0; width: 100%; height: 100%; }
+
+  /* ============ UI ============ */
+  .topbar {
+    position: fixed;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    border-radius: 999px;
+    background: rgba(20, 24, 34, 0.55);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  }
+  .topbar label {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.65;
+    user-select: none;
+  }
+  .topbar select {
+    appearance: none;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: inherit;
+    font: 600 14px "Inter", -apple-system, sans-serif;
+    cursor: pointer;
+    padding: 4px 6px;
+  }
+  .topbar select option { background: #171a23; color: #e8eaf0; }
+
+  .hint {
+    position: fixed;
+    bottom: 22px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+    font-size: 12px;
+    letter-spacing: 0.05em;
+    opacity: 0.4;
+    user-select: none;
+    transition: opacity 0.6s ease, color 0.6s ease;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    #t-aurora { animation: none; }
+    #t-prism  { animation: none; background-position: 0% 50%; filter: none; }
+  }
+</style>
+</head>
+<body>
+
+  <!-- static themes -->
+  <div class="theme" id="t-midnight"></div>
+  <div class="theme" id="t-black"></div>
+  <div class="theme" id="t-slate"></div>
+  <div class="theme" id="t-ivory"></div>
+  <div class="theme" id="t-white"></div>
+  <div class="theme" id="t-ocean"></div>
+  <div class="theme" id="t-ember"></div>
+
+  <!-- dynamic gradients -->
+  <div class="theme" id="t-aurora"></div>
+  <div class="theme" id="t-prism"></div>
+  <div class="theme" id="t-liquid"><canvas id="liquid-canvas"></canvas></div>
+
+  <div class="topbar">
+    <label for="theme-select">Theme</label>
+    <select id="theme-select">
+      <option value="midnight">Midnight — solid</option>
+      <option value="black">Pure Black — solid</option>
+      <option value="slate">Slate — solid</option>
+      <option value="ivory">Ivory — solid</option>
+      <option value="white">Pure White — solid</option>
+      <option value="ocean">Ocean — static gradient</option>
+      <option value="ember">Ember — static gradient</option>
+      <option value="aurora">Aurora Mesh — dynamic gradient</option>
+      <option value="prism">Prism Shift — dynamic gradient</option>
+      <option value="liquid">Liquid Canvas — dynamic gradient</option>
+    </select>
+  </div>
+
+  <div class="hint" id="hint">a blank screen, your way</div>
+
+<script>
+  const select = document.getElementById('theme-select');
+  const layers = new Map(
+    Array.from(document.querySelectorAll('.theme')).map(el => [el.id.replace('t-', ''), el])
+  );
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function applyTheme(name) {
+    for (const [key, el] of layers) el.classList.toggle('active', key === name);
+    const isLight = name === 'ivory' || name === 'white';
+    const isEmber = name === 'ember';
+    document.body.style.color = isLight ? '#111318' : '#e8eaf0';
+    hint.style.color = isLight ? '#111318' : '#e8eaf0';
+    if (isEmber) {
+      // darker chip on top of bright gradient
+      hint.style.color = 'rgba(255,255,255,0.75)';
+    }
+    localStorage.setItem('blank-theme', name);
+  }
+
+  select.addEventListener('change', () => applyTheme(select.value));
+  applyTheme(localStorage.getItem('blank-theme') || 'midnight');
+
+  /* ---------- Liquid Canvas: flowing gradient blobs ---------- */
+  const canvas = document.getElementById('liquid-canvas');
+  const ctx = canvas.getContext('2d');
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const PERIOD = 16; // seconds — one seamless loop
+  let W, H, running = !reduce;
+  const blobs = [
+    { x: 0.25, y: 0.30, r: 0.55, hue: 215, sat: 100, lit: 60 },
+    { x: 0.75, y: 0.20, r: 0.48, hue: 285, sat: 90,  lit: 62 },
+    { x: 0.50, y: 0.80, r: 0.60, hue: 165, sat: 85,  lit: 58 },
+    { x: 0.85, y: 0.70, r: 0.42, hue: 330, sat: 95,  lit: 58 },
+    { x: 0.12, y: 0.65, r: 0.35, hue: 45,  sat: 90,  lit: 60 },
+  ];
+
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = canvas.width = Math.round(innerWidth * dpr);
+    H = canvas.height = Math.round(innerHeight * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  addEventListener('resize', resize);
+  resize();
+
+  function draw(t) {
+    const phase = (t % PERIOD) / PERIOD * Math.PI * 2;
+    ctx.clearRect(0, 0, W, H);
+    ctx.globalCompositeOperation = 'screen';
+    for (const b of blobs) {
+      const x = (b.x + Math.sin(phase + b.hue) * 0.12) * innerWidth;
+      const y = (b.y + Math.cos(phase * 0.8 + b.sat) * 0.12) * innerHeight;
+      const r = b.r * Math.min(innerWidth, innerHeight) * 0.65 * (1 + Math.sin(phase * 0.5 + b.r) * 0.15);
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, `hsla(${b.hue}, ${b.sat}%, ${b.lit}%, 0.42)`);
+      g.addColorStop(1, `hsla(${b.hue}, ${b.sat}%, ${b.lit}%, 0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  let start;
+  function loop(ts) {
+    if (running) {
+      if (start === undefined) start = ts;
+      draw((ts - start) / 1000);
+    }
+    requestAnimationFrame(loop);
+  }
+  if (!reduce) {
+    draw(0);
+    requestAnimationFrame(loop);
+  } else {
+    draw(0); // single static frame
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    running = !document.hidden && !reduce;
+    if (running) start = undefined; // avoid a time jump on resume
+  });
+</script>
+</body>
+</html>
