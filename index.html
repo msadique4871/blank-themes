@@ -3,41 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Blank Screen · Theme Selector</title>
+<title>Blank Screen · Gemini Aurora</title>
 <style>
-  :root {
-    --fg-light: #e8eaf0;
-    --fg-dark: #111318;
-  }
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   html, body { height: 100%; }
 
   body {
     font-family: "Inter", -apple-system, "Segoe UI", Roboto, sans-serif;
-    background: #0b0e1a;
-    color: var(--fg-light);
+    background: #05060d;
+    color: #e8eaf0;
     overflow: hidden;
-    transition: background 0.6s ease, color 0.6s ease;
   }
 
-  /* ============ THEME LAYERS ============ */
-  .theme { position: fixed; inset: 0; opacity: 0; pointer-events: none; transition: opacity 0.6s ease; }
-  .theme.active { opacity: 1; }
-
-  /* --- Solid themes --- */
-  #t-midnight { background: #0b0e1a; }
-  #t-black    { background: #000000; }
-  #t-slate    { background: #1f2937; }
-  #t-ivory    { background: #f4efe6; color: #1f2937 !important; }
-  #t-white    { background: #ffffff; color: #111318 !important; }
-
-  /* --- Static gradients --- */
-  #t-ocean { background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%); }
-  #t-ember { background: linear-gradient(135deg, #ff512f 0%, #f09819 55%, #dd2476 100%); }
-
-  /* --- Aurora canvas (all 11 aurora engines render here) --- */
-  #t-fx { background: #05060d; }
+  /* ============ THEME LAYER ============ */
+  .theme { position: fixed; inset: 0; opacity: 1; pointer-events: none; }
   #t-fx canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 
   /* ============ UI ============ */
@@ -87,45 +67,18 @@
     letter-spacing: 0.05em;
     opacity: 0.4;
     user-select: none;
-    transition: opacity 0.6s ease, color 0.6s ease;
   }
 </style>
 </head>
 <body>
 
-  <!-- static themes -->
-  <div class="theme" id="t-midnight"></div>
-  <div class="theme" id="t-black"></div>
-  <div class="theme" id="t-slate"></div>
-  <div class="theme" id="t-ivory"></div>
-  <div class="theme" id="t-white"></div>
-  <div class="theme" id="t-ocean"></div>
-  <div class="theme" id="t-ember"></div>
-
-  <!-- aurora themes (11 engines share this canvas) -->
+  <!-- single theme: Aurora Curtains in Gemini's 4 signature colors -->
   <div class="theme" id="t-fx"><canvas id="fx-canvas"></canvas></div>
 
   <div class="topbar">
     <label for="theme-select">Theme</label>
     <select id="theme-select">
-      <option value="midnight">Midnight — solid</option>
-      <option value="black">Pure Black — solid</option>
-      <option value="slate">Slate — solid</option>
-      <option value="ivory">Ivory — solid</option>
-      <option value="white">Pure White — solid</option>
-      <option value="ocean">Ocean — static gradient</option>
-      <option value="ember">Ember — static gradient</option>
-      <option value="curtains">Aurora Curtains — Gemini-style</option>
-      <option value="gemwaves">Gemini Waves — aurora</option>
-      <option value="silkflow">Silk Ribbons — aurora</option>
-      <option value="velvet">Velvet Drape — aurora</option>
-      <option value="candy">Candy Flow — aurora</option>
-      <option value="neon">Neon Aurora — aurora</option>
-      <option value="polaris">Polaris Night — aurora</option>
-      <option value="boreal">Boreal Glow — aurora</option>
-      <option value="sunrise">Sunrise Aurora — aurora</option>
-      <option value="arctic">Arctic Sheen — aurora</option>
-      <option value="duotone">Duotone Drift — aurora</option>
+      <option value="curtains">Aurora Curtains — Gemini</option>
     </select>
   </div>
 
@@ -133,38 +86,12 @@
 
 <script>
   const select = document.getElementById('theme-select');
-  const layers = new Map(
-    Array.from(document.querySelectorAll('.theme')).map(el => [el.id.replace('t-', ''), el])
-  );
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  /* FX engine state */
-  const FX_THEMES = ['curtains','gemwaves','silkflow','velvet','candy','neon','polaris','boreal','sunrise','arctic','duotone'];
-  let activeFx = null, fxT0 = null, lastFxT = 0, pendingFxFrame = false;
-
-  function applyTheme(name) {
-    const isFx = FX_THEMES.includes(name);
-    for (const [key, el] of layers) {
-      el.classList.toggle('active', key === name || (key === 'fx' && isFx));
-    }
-    const isLight = name === 'ivory' || name === 'white';
-    const isEmber = name === 'ember';
-    document.body.style.color = isLight ? '#111318' : '#e8eaf0';
-    hint.style.color = isLight ? '#111318' : '#e8eaf0';
-    if (isEmber) hint.style.color = 'rgba(255,255,255,0.75)';
-    localStorage.setItem('blank-theme', name);
-    activeFx = FX_THEMES.includes(name) ? name : null;
-    fxT0 = null; lastFxT = 0; pendingFxFrame = true;
-  }
-
-  select.addEventListener('change', () => applyTheme(select.value));
-  applyTheme(localStorage.getItem('blank-theme') || 'midnight');
-
   /* ============================================================
-     AURORA ENGINE — Gemini-style flowing ribbon gradients.
-     Per-pixel layered sine curtains with wobble + fbm turbulence,
-     rendered into a low-res buffer and upscaled smooth.
-     Each variant is just a palette/motion config.
+     AURORA CURRANTS — Gemini signature palette.
+     Google's four brand colors cycle through drifting sine
+     curtains; fbm turbulence bends the fabric.
      ============================================================ */
   const FX_W = 240, FX_H = 135;
   const pixel = document.createElement('canvas');
@@ -174,6 +101,14 @@
   const buf = idata.data;
   const fxCanvas = document.getElementById('fx-canvas');
   const fxCtx = fxCanvas.getContext('2d');
+
+  /* Gemini's 4 signature colors: blue → green → yellow → red */
+  const GEMINI = [
+    [66, 133, 244],    // #4285F4  blue
+    [52, 168, 83],     // #34A853  green
+    [249, 171, 0],     // #F9AB00  yellow
+    [234, 67, 53]      // #EA4335  red
+  ];
 
   function hash2(x, y) {
     let h = Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263);
@@ -194,195 +129,84 @@
     for (let i = 0; i < oct; i++) { s += amp * vnoise(x * f, y * f); f *= 2; amp *= 0.5; }
     return s;
   }
-  function hslc(h, s, l) {
-    h = ((h % 360) + 360) % 360;
-    s /= 100; l /= 100;
-    const c = (1 - Math.abs(2 * l - 1)) * s;
-    const hp = h / 60;
-    const x = c * (1 - Math.abs(hp % 2 - 1));
-    let r = 0, g = 0, b = 0;
-    if (hp < 1) [r, g] = [c, x]; else if (hp < 2) [r, g] = [x, c];
-    else if (hp < 3) [g, b] = [c, x]; else if (hp < 4) [g, b] = [x, c];
-    else if (hp < 5) [r, b] = [x, c]; else [r, b] = [c, x];
-    const m = l - c / 2;
-    return [(r + m) * 255, (g + m) * 255, (b + m) * 255];
-  }
-  function put(buf, i, c) { buf[i] = c[0]; buf[i + 1] = c[1]; buf[i + 2] = c[2]; buf[i + 3] = 255; }
 
-  /* Core ribbon renderer. cfg:
-     layers, freq, speed, soft (exponent → band sharpness), falloff (vertical),
-     hueBase, hueSpread, hueDrift (deg/s), hueLayer (hue shift per layer),
-     sat, satSpread, lightMin, lightMax, turb (fbm wobble amount),
-     twoTone {hueA, hueB} or smooth hue ramp, weights[per layer] */
-  function auroraRender(cfg, t) {
+  /* 4-stop cyclic palette: p in [0,1) wraps blue→green→yellow→red→blue */
+  function geminiColor(p) {
+    const n = p * 4;
+    const i = Math.floor(n) % 4;
+    const f = n - Math.floor(n);
+    const a = GEMINI[i], b = GEMINI[(i + 1) % 4];
+    return [
+      (a[0] + (b[0] - a[0]) * f) | 0,
+      (a[1] + (b[1] - a[1]) * f) | 0,
+      (a[2] + (b[2] - a[2]) * f) | 0
+    ];
+  }
+
+  function renderCurtains(t) {
     const W = FX_W, H = FX_H;
-    const tw = cfg.twoTone;
-    const weights = cfg.weights;
     for (let y = 0, i = 0; y < H; y++) {
       const v = y / H;
-      const fv = 1 - v * (cfg.falloff ?? 0.85);
       for (let x = 0; x < W; x++, i += 4) {
         const u = x / W;
-        const axis = cfg.dir === 'y' ? v : u;
-        const perp = cfg.dir === 'y' ? u : v;
-        let luma = 0, hueMix = 0, wsum = 0;
-        for (let k = 0; k < cfg.layers; k++) {
-          const ph = axis * cfg.freq * (1 + k * 0.45) - t * cfg.speed * (0.8 + k * 0.21) + k * 2.4
-            + Math.sin(perp * 3.2 + t * 0.29 + k * 1.6) * 0.9
-            + (cfg.turb ? fbm(u * 3 + t * 0.05 + k * 1.7, v * 3 - t * 0.04 + k, 3) * cfg.turb : 0);
-          const b = Math.pow(0.5 + 0.5 * Math.sin(ph), cfg.soft ?? 1.4);
-          const w = weights ? weights[Math.min(k, weights.length - 1)] : 0.7 + 0.3 * (k === 0 ? 0 : 1);
-          luma += b * w;
-          hueMix += (tw ? (k % 2 ? tw.hueB : tw.hueA)
-                         : cfg.hueBase + b * cfg.hueSpread + (cfg.hueLayer ?? 0) * k) * w;
-          wsum += w;
+        /* 4 phase-locked sine curtains, vertical wobble via field sine */
+        let a = 0;
+        for (let k = 0; k < 4; k++) {
+          a += Math.sin(u * (7 + k * 1.8) + t * (0.55 + k * 0.11)
+            + Math.sin(v * 3.5 + t * 0.4 + k * 1.7) * 2.6);
         }
-        luma /= wsum; hueMix /= wsum;
-        const h = hueMix + t * (cfg.hueDrift ?? 0);
-        const s = cfg.sat + luma * (cfg.satSpread ?? cfg.sat * 0.3);
-        const l = cfg.lightMin + luma * cfg.lightMax * fv;
-        put(buf, i, hslc(h, s, l));
+        a /= 4;
+        const m = fbm(u * 2.6, v * 2.3 + t * 0.07, 3);
+        const b = Math.pow(a * 0.5 + 0.5, 2.2);   // band intensity 0..1
+        /* color sweeps full blue→green→yellow→red cycle across the width,
+           flowing with time — all 4 Gemini colors visible at once */
+        const p = (u * 1.1 + t * 0.06 + m * 0.25) % 1;
+        const c = geminiColor(p);
+        /* brightness: curtain depth falloff, band fade at edges */
+        const k = 0.22 + Math.min(1, b * (1.25 - v * 0.9)) * 0.8;
+        buf[i]     = (c[0] * k) | 0;
+        buf[i + 1] = (c[1] * k) | 0;
+        buf[i + 2] = (c[2] * k) | 0;
+        buf[i + 3] = 255;
       }
     }
   }
-  function auroraTheme(cfg) { return { frame(t) { auroraRender(cfg, t); } }; }
 
-  const FX = {};
-
-  /* --- The original: Aurora Curtains (vertical curtains, fbm wobble) --- */
-  FX.curtains = {
-    frame(t) {
-      const W = FX_W, H = FX_H;
-      for (let y = 0, i = 0; y < H; y++) {
-        const v = y / H;
-        for (let x = 0; x < W; x++, i += 4) {
-          const u = x / W;
-          let a = 0;
-          for (let k = 0; k < 4; k++) {
-            a += Math.sin(u * (7 + k * 1.8) + t * (0.55 + k * 0.11)
-              + Math.sin(v * 3.5 + t * 0.4 + k * 1.7) * 2.6);
-          }
-          a /= 4;
-          const m = fbm(u * 2.6, v * 2.3 + t * 0.07, 3);
-          const b = Math.pow(a * 0.5 + 0.5, 3);
-          const l = b * (1.2 - v * 0.9) * 66;
-          put(buf, i, hslc(165 + m * 130 + t * 9, 85 + m * 10, l));
-        }
-      }
-    }
-  };
-
-  /* --- 10 Gemini-family variants: same silk physics, different moods --- */
-  FX.gemwaves = auroraTheme({
-    layers: 3, freq: 5.5, speed: 0.42, soft: 1.6, falloff: 0.85, turb: 0.4,
-    hueBase: 262, hueSpread: 62, hueDrift: 1.5, hueLayer: 2,
-    sat: 72, satSpread: 18, lightMin: 10, lightMax: 62,
-    weights: [0.6, 0.95, 1.0]
-  });
-
-  FX.silkflow = auroraTheme({
-    layers: 5, freq: 8, speed: 0.75, soft: 3.2, falloff: 0.7, turb: 0.25,
-    hueBase: 238, hueSpread: 72, hueDrift: 2.5, hueLayer: 4,
-    sat: 78, satSpread: 15, lightMin: 12, lightMax: 76,
-    weights: [0.35, 0.6, 0.85, 1.0, 0.8]
-  });
-
-  FX.velvet = auroraTheme({
-    layers: 4, freq: 3.5, speed: 0.22, soft: 1.8, falloff: 0.9, turb: 0.9,
-    hueBase: 268, hueSpread: 46, hueDrift: 0.8, hueLayer: 3,
-    sat: 66, satSpread: 12, lightMin: 8, lightMax: 46,
-    weights: [0.5, 0.8, 1.0, 0.85]
-  });
-
-  FX.candy = auroraTheme({
-    layers: 4, freq: 5, speed: 0.55, soft: 1.5, falloff: 0.8, turb: 0.3,
-    hueBase: 300, hueSpread: 120, hueDrift: 9, hueLayer: 2,
-    sat: 74, satSpread: 16, lightMin: 10, lightMax: 66,
-    weights: [0.6, 0.9, 1.0, 0.85]
-  });
-
-  FX.neon = auroraTheme({
-    layers: 3, freq: 7, speed: 0.65, soft: 2.0, falloff: 0.75, turb: 0.35,
-    hueBase: 200, hueSpread: 90, hueDrift: 4, hueLayer: 3,
-    sat: 95, satSpread: 5, lightMin: 8, lightMax: 78,
-    weights: [0.55, 0.9, 1.0]
-  });
-
-  FX.polaris = auroraTheme({
-    layers: 3, freq: 4.5, speed: 0.35, soft: 1.7, falloff: 1.05, turb: 0.5,
-    hueBase: 205, hueSpread: 55, hueDrift: 1.2, hueLayer: 2,
-    sat: 80, satSpread: 14, lightMin: 6, lightMax: 44,
-    weights: [0.6, 0.95, 1.0]
-  });
-
-  FX.boreal = auroraTheme({
-    layers: 4, freq: 6, speed: 0.5, soft: 1.6, falloff: 0.9, turb: 0.55,
-    hueBase: 145, hueSpread: 70, hueDrift: 1.0, hueLayer: 3,
-    sat: 78, satSpread: 12, lightMin: 8, lightMax: 58,
-    weights: [0.5, 0.85, 1.0, 0.8]
-  });
-
-  FX.sunrise = auroraTheme({
-    layers: 4, freq: 5, speed: 0.48, soft: 1.5, falloff: 0.8, turb: 0.3,
-    hueBase: 18, hueSpread: 40, hueDrift: 2.0, hueLayer: 2,
-    sat: 82, satSpread: 14, lightMin: 10, lightMax: 66,
-    weights: [0.55, 0.9, 1.0, 0.85]
-  });
-
-  FX.arctic = auroraTheme({
-    layers: 5, freq: 9, speed: 0.7, soft: 3.5, falloff: 0.65, turb: 0.2,
-    hueBase: 190, hueSpread: 30, hueDrift: 3.0, hueLayer: 2,
-    sat: 65, satSpread: 10, lightMin: 14, lightMax: 80,
-    weights: [0.4, 0.65, 0.9, 1.0, 0.8]
-  });
-
-  FX.duotone = auroraTheme({
-    layers: 4, freq: 6, speed: 0.42, soft: 1.8, falloff: 0.85, turb: 0.4,
-    sat: 74, satSpread: 10, lightMin: 9, lightMax: 58,
-    hueDrift: 1.0, twoTone: { hueA: 265, hueB: 175 },
-    weights: [0.6, 0.9, 1.0, 0.8]
-  });
-
-  /* ---------- render loop ---------- */
+  /* ---------- render loop (pauses when hidden / reduced motion) ---------- */
   function fitFx() {
     if (fxCanvas.width !== innerWidth || fxCanvas.height !== innerHeight) {
       fxCanvas.width = innerWidth; fxCanvas.height = innerHeight;
     }
   }
+  let t0 = null, lastT = 0;
   function fxFrame(ts) {
-    if (activeFx && !reduceMotion && !document.hidden) {
-      if (fxT0 === null) fxT0 = ts - lastFxT;
-      const t = (ts - fxT0) / 1000;
-      FX[activeFx].frame(t);
+    if (!reduceMotion && !document.hidden) {
+      if (t0 === null) t0 = ts - lastT;
+      const t = (ts - t0) / 1000;
+      renderCurtains(t);
       pctx.putImageData(idata, 0, 0);
       fitFx();
       fxCtx.imageSmoothingEnabled = true;
       fxCtx.drawImage(pixel, 0, 0, innerWidth, innerHeight);
-      lastFxT = t * 1000;
+      lastT = t * 1000;
     }
     requestAnimationFrame(fxFrame);
   }
-
-  function drawFxOnce(name) {
-    const f = FX[name];
-    if (!f) return;
-    f.frame(0);
+  if (reduceMotion) {
+    renderCurtains(0);
     pctx.putImageData(idata, 0, 0);
     fitFx();
-    fxCtx.imageSmoothingEnabled = true;
     fxCtx.drawImage(pixel, 0, 0, innerWidth, innerHeight);
-  }
-
-  if (reduceMotion) {
-    requestAnimationFrame(function idle() {
-      if (activeFx && pendingFxFrame) { drawFxOnce(activeFx); pendingFxFrame = false; }
-      requestAnimationFrame(idle);
-    });
   } else {
     requestAnimationFrame(fxFrame);
   }
   addEventListener('resize', () => {
-    if (reduceMotion && activeFx) drawFxOnce(activeFx);
+    if (reduceMotion) {
+      renderCurtains(0);
+      pctx.putImageData(idata, 0, 0);
+      fitFx();
+      fxCtx.drawImage(pixel, 0, 0, innerWidth, innerHeight);
+    }
   });
 </script>
 </body>
