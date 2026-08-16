@@ -72,7 +72,7 @@
 </head>
 <body>
 
-  <!-- all 12 aurora themes share this canvas -->
+  <!-- all 13 aurora themes share this canvas -->
   <div class="theme" id="t-fx"><canvas id="fx-canvas"></canvas></div>
 
   <div class="topbar">
@@ -90,6 +90,7 @@
       <option value="tide">Tidal Drift</option>
       <option value="pulse">Center Pulse</option>
       <option value="whirl">Whirl Curtains</option>
+      <option value="rainlight">Rain Ripples Light</option>
     </select>
   </div>
 
@@ -100,12 +101,12 @@
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   /* ============================================================
-     GEMINI AURORA COLLECTION — 12 themes, one palette.
+     GEMINI AURORA COLLECTION — 13 themes, one palette.
      All use Google's 4 signature colors, interpolated as a
      continuous cyclic gradient (blue → green → yellow → red).
      Motion styles differ purely by the math driving the flow.
      ============================================================ */
-  const FX_THEMES = ['curtains','flow','orbit','spiral','rings','sweep','breathe','ripples','morph','tide','pulse','whirl'];
+  const FX_THEMES = ['curtains','flow','orbit','spiral','rings','sweep','breathe','ripples','morph','tide','pulse','whirl','rainlight'];
   let activeFx = null, fxT0 = null, lastFxT = 0, pendingFxFrame = false;
 
   function applyTheme(name) {
@@ -415,6 +416,32 @@
         const bw = 0.5 + 0.5 * wave;
         const b = Math.pow(a * 0.5 + 0.5, 1.9);
         emit(i, p, 0.24 + Math.min(1, b * 0.62 + bw * 0.34) * 0.78 * (1 - v * 0.3));
+      }
+    }
+  }};
+
+  /* ── 13 · Rain Ripples Light — same drifting drops, lighter key ── */
+  FX.rainlight = { frame(t) {
+    const S = [];
+    for (let s = 0; s < 3; s++) {
+      S.push({
+        x: 0.5 + 0.38 * Math.sin(t * 0.27 + s * 2.1),
+        y: 0.5 + 0.3 * Math.cos(t * 0.23 + s * 1.3)
+      });
+    }
+    for (let y = 0, i = 0; y < H; y++) {
+      const v = y / H;
+      for (let x = 0; x < W; x++, i += 4) {
+        const u = x / W;
+        let wave = 0;
+        for (let s = 0; s < 3; s++) {
+          const d = Math.hypot(u - S[s].x, v - S[s].y) * 5;
+          wave += Math.sin(d - t * 2.4 + s * 1.1) / (1 + d * d * 0.5);
+        }
+        wave /= 3;
+        const m = fbm(u * 2, v * 2 + t * 0.05, 3);
+        const p = (0.3 * (u + v) + wave * 0.28 + t * 0.02 + m * 0.15) % 1;
+        emit(i, p, 0.4 + (0.5 + 0.5 * wave) * 0.52 * (1 - v * 0.25));
       }
     }
   }};

@@ -1,6 +1,6 @@
 # Blank Screen — Gemini Aurora Collection
 
-A minimalist blank screen with 12 flowing gradient themes, all colored
+A minimalist blank screen with 13 flowing gradient themes, all colored
 exclusively with Google Gemini's 4 signature colors:
 
 - **Blue** `#4285F4` (`66,133,244`)
@@ -26,6 +26,7 @@ and differs only by the math driving its motion:
 | Tidal Drift | slow horizontal tide with vertical swell |
 | Center Pulse | radial heartbeat from the middle |
 | Whirl Curtains | Aurora Curtains inside Orbit's rotating frame, rippled by drifting drops |
+| Rain Ripples Light | Rain Ripples' same drifting drops, lighter key |
 
 Rendered per-pixel at 240×135 shader-style, upscaled with smoothing. Honors
 `prefers-reduced-motion` (one static frame) and pauses when the tab is hidden.
