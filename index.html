@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Blank Screen · Gemini Aurora</title>
+<title>Blank Screen · Gemini Aurora Collection</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -72,13 +72,23 @@
 </head>
 <body>
 
-  <!-- single theme: Aurora Curtains in Gemini's 4 signature colors -->
+  <!-- all 11 aurora themes share this canvas -->
   <div class="theme" id="t-fx"><canvas id="fx-canvas"></canvas></div>
 
   <div class="topbar">
     <label for="theme-select">Theme</label>
     <select id="theme-select">
-      <option value="curtains">Aurora Curtains — Gemini</option>
+      <option value="curtains">Aurora Curtains</option>
+      <option value="flow">Flowing Bands</option>
+      <option value="orbit">Orbit Spin</option>
+      <option value="spiral">Galaxy Spiral</option>
+      <option value="rings">Radial Rings</option>
+      <option value="sweep">Diagonal Sheen</option>
+      <option value="breathe">Soft Breath</option>
+      <option value="ripples">Rain Ripples</option>
+      <option value="morph">Morph Field</option>
+      <option value="tide">Tidal Drift</option>
+      <option value="pulse">Center Pulse</option>
     </select>
   </div>
 
@@ -89,10 +99,25 @@
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   /* ============================================================
-     AURORA CURRANTS — Gemini signature palette.
-     Google's four brand colors cycle through drifting sine
-     curtains; fbm turbulence bends the fabric.
+     GEMINI AURORA COLLECTION — 11 themes, one palette.
+     All use Google's 4 signature colors, interpolated as a
+     continuous cyclic gradient (blue → green → yellow → red).
+     Motion styles differ purely by the math driving the flow.
      ============================================================ */
+  const FX_THEMES = ['curtains','flow','orbit','spiral','rings','sweep','breathe','ripples','morph','tide','pulse'];
+  let activeFx = null, fxT0 = null, lastFxT = 0, pendingFxFrame = false;
+
+  function applyTheme(name) {
+    if (!FX_THEMES.includes(name)) name = 'curtains';
+    activeFx = name;
+    fxT0 = null; lastFxT = 0; pendingFxFrame = true;
+    localStorage.setItem('blank-theme', name);
+  }
+
+  select.addEventListener('change', () => applyTheme(select.value));
+  applyTheme(localStorage.getItem('blank-theme') || 'curtains');
+
+  /* ---------- pipeline ---------- */
   const FX_W = 240, FX_H = 135;
   const pixel = document.createElement('canvas');
   pixel.width = FX_W; pixel.height = FX_H;
@@ -130,26 +155,38 @@
     return s;
   }
 
-  /* 4-stop cyclic palette: p in [0,1) wraps blue→green→yellow→red→blue */
+  /* 4-stop cyclic palette: p in [0,1) wraps blue→green→yellow→red→blue.
+     Linear lerp between stops → continuous, seamless gradient. */
   function geminiColor(p) {
     const n = p * 4;
-    const i = Math.floor(n) % 4;
+    const i = Math.floor(n) & 3;
     const f = n - Math.floor(n);
-    const a = GEMINI[i], b = GEMINI[(i + 1) % 4];
+    const a = GEMINI[i], b = GEMINI[(i + 1) & 3];
     return [
-      (a[0] + (b[0] - a[0]) * f) | 0,
-      (a[1] + (b[1] - a[1]) * f) | 0,
-      (a[2] + (b[2] - a[2]) * f) | 0
+      a[0] + (b[0] - a[0]) * f,
+      a[1] + (b[1] - a[1]) * f,
+      a[2] + (b[2] - a[2]) * f
     ];
   }
 
-  function renderCurtains(t) {
-    const W = FX_W, H = FX_H;
+  /* write pixel i with palette position p and brightness k (0..1) */
+  function emit(i, p, k) {
+    const c = geminiColor(p);
+    buf[i] = (c[0] * k) | 0;
+    buf[i + 1] = (c[1] * k) | 0;
+    buf[i + 2] = (c[2] * k) | 0;
+    buf[i + 3] = 255;
+  }
+
+  const FX = {};
+  const W = FX_W, H = FX_H;
+
+  /* ── 1 · Aurora Curtains — vertical sine curtains + fbm wobble ── */
+  FX.curtains = { frame(t) {
     for (let y = 0, i = 0; y < H; y++) {
       const v = y / H;
       for (let x = 0; x < W; x++, i += 4) {
         const u = x / W;
-        /* 4 phase-locked sine curtains, vertical wobble via field sine */
         let a = 0;
         for (let k = 0; k < 4; k++) {
           a += Math.sin(u * (7 + k * 1.8) + t * (0.55 + k * 0.11)
@@ -157,20 +194,187 @@
         }
         a /= 4;
         const m = fbm(u * 2.6, v * 2.3 + t * 0.07, 3);
-        const b = Math.pow(a * 0.5 + 0.5, 2.2);   // band intensity 0..1
-        /* color sweeps full blue→green→yellow→red cycle across the width,
-           flowing with time — all 4 Gemini colors visible at once */
+        const b = Math.pow(a * 0.5 + 0.5, 2.2);
         const p = (u * 1.1 + t * 0.06 + m * 0.25) % 1;
-        const c = geminiColor(p);
-        /* brightness: curtain depth falloff, band fade at edges */
-        const k = 0.22 + Math.min(1, b * (1.25 - v * 0.9)) * 0.8;
-        buf[i]     = (c[0] * k) | 0;
-        buf[i + 1] = (c[1] * k) | 0;
-        buf[i + 2] = (c[2] * k) | 0;
-        buf[i + 3] = 255;
+        emit(i, p, 0.22 + Math.min(1, b * (1.25 - v * 0.9)) * 0.8);
       }
     }
-  }
+  }};
+
+  /* ── 2 · Flowing Bands — travelling sine bands, lazy sway ── */
+  FX.flow = { frame(t) {
+    for (let y = 0, i = 0; y < H; y++) {
+      const v = y / H;
+      for (let x = 0; x < W; x++, i += 4) {
+        const u = x / W;
+        const m = fbm(u * 2, v * 2 + t * 0.05, 3);
+        const p = (u * 1.5 + t * 0.05 + Math.sin(v * 6 + t * 0.4) * 0.12 + m * 0.2) % 1;
+        const b = 0.5 + 0.5 * Math.sin(v * 5 + u * 4 - t * 0.8 + m * 1.5);
+        emit(i, p, 0.25 + b * 0.75 * (1 - v * 0.75));
+      }
+    }
+  }};
+
+  /* ── 3 · Orbit Spin — gradient rotates inside a rotating frame ── */
+  FX.orbit = { frame(t) {
+    const th = t * 0.09, cs = Math.cos(th), sn = Math.sin(th);
+    for (let y = 0, i = 0; y < H; y++) {
+      const v = y / H;
+      for (let x = 0; x < W; x++, i += 4) {
+        const u = x / W;
+        const ux = (u - 0.5) * cs - (v - 0.5) * sn;
+        const uy = (u - 0.5) * sn + (v - 0.5) * cs;
+        const r = Math.hypot(ux, uy);
+        const m = fbm(u * 2, v * 2 + t * 0.03, 3);
+        const p = (ux * 1.3 + uy * 0.5 + m * 0.18 + t * 0.02) % 1;
+        emit(i, p, 0.28 + (0.5 + 0.5 * Math.sin(r * 6 - t * 0.5 + m * 2)) * 0.72 * (1 - r * 0.45));
+      }
+    }
+  }};
+
+  /* ── 4 · Galaxy Spiral — radial flow with rotating arms ── */
+  FX.spiral = { frame(t) {
+    const th = t * 0.05, cs = Math.cos(th), sn = Math.sin(th);
+    for (let y = 0, i = 0; y < H; y++) {
+      const v = y / H;
+      for (let x = 0; x < W; x++, i += 4) {
+        const u = x / W;
+        const ux = (u - 0.5) * cs - (v - 0.5) * sn;
+        const uy = (u - 0.5) * sn + (v - 0.5) * cs;
+        const r = Math.hypot(ux, uy);
+        const sf = Math.min(1, r * 6); // angular terms fade near the core (anti-alias)
+        // cut-free angle: sin(2a) & cos(2a) from unit vector (no atan2 branch cut)
+        const cr = Math.max(1e-9, r), ca = ux / cr, sa = uy / cr;
+        const sin2 = 2 * sa * ca, cos2 = ca * ca - sa * sa;
+        const m = fbm(u * 2, v * 2 - t * 0.03, 3);
+        const p1 = t * 0.25, p2 = t * 0.5 - r * 4.5;
+        const w1 = 0.5 + 0.5 * (sin2 * Math.cos(p1) + cos2 * Math.sin(p1));
+        const w2 = 0.5 + 0.5 * (sin2 * Math.cos(p2) + cos2 * Math.sin(p2));
+        const p = (r * 2.4 + t * 0.08 + w1 * 0.35 * sf + m * 0.15) % 1;
+        emit(i, p, 0.3 + w2 * 0.6 * sf * Math.exp(-r * 2.2));
+      }
+    }
+  }};
+
+  /* ── 5 · Radial Rings — soft concentric pulses from center ── */
+  FX.rings = { frame(t) {
+    for (let y = 0, i = 0; y < H; y++) {
+      const v = y / H;
+      for (let x = 0; x < W; x++, i += 4) {
+        const u = x / W;
+        const r = Math.hypot(u - 0.5, v - 0.5);
+        const m = fbm(u * 2.5, v * 2.5 + t * 0.04, 3);
+        const p = (r * 3 - t * 0.45 + m * 0.2) % 1;
+        emit(i, p, 0.3 + (0.5 + 0.5 * Math.sin(r * 12 - t * 1.4 + m * 2.5)) * 0.65 * Math.exp(-r * 2.4));
+      }
+    }
+  }};
+
+  /* ── 6 · Diagonal Sheen — light sweeping across glass ── */
+  FX.sweep = { frame(t) {
+    for (let y = 0, i = 0; y < H; y++) {
+      const v = y / H;
+      for (let x = 0; x < W; x++, i += 4) {
+        const u = x / W;
+        const m = fbm(u * 2.5, v * 2.5 + t * 0.05, 3);
+        const d = u + v;
+        const p = (d * 1.6 + t * 0.06 + m * 0.25) % 1;
+        emit(i, p, 0.25 + (0.5 + 0.5 * Math.sin(d * 8 - t * 1.1 + m * 2.4)) * 0.75 * (1 - Math.abs(v - 0.5) * 0.7));
+      }
+    }
+  }};
+
+  /* ── 7 · Soft Breath — whole-screen luminance breathing ── */
+  FX.breathe = { frame(t) {
+    const breathe = 0.5 + 0.5 * Math.sin(t * 0.25);
+    for (let y = 0, i = 0; y < H; y++) {
+      const v = y / H;
+      for (let x = 0; x < W; x++, i += 4) {
+        const u = x / W;
+        const m = fbm(u * 1.8, v * 1.8 + t * 0.04, 3);
+        const p = (u * 0.9 + t * 0.03 + m * 0.3) % 1;
+        const k = 0.3 + 0.45 * breathe + 0.25 * (0.5 + 0.5 * Math.sin(v * 3 + t * 0.2 + u * 2));
+        emit(i, p, k);
+      }
+    }
+  }};
+
+  /* ── 8 · Rain Ripples — interference of rings from 3 drifting drops ── */
+  FX.ripples = { frame(t) {
+    const S = [];
+    for (let s = 0; s < 3; s++) {
+      S.push({
+        x: 0.5 + 0.38 * Math.sin(t * 0.27 + s * 2.1),
+        y: 0.5 + 0.3 * Math.cos(t * 0.23 + s * 1.3)
+      });
+    }
+    for (let y = 0, i = 0; y < H; y++) {
+      const v = y / H;
+      for (let x = 0; x < W; x++, i += 4) {
+        const u = x / W;
+        let wave = 0;
+        for (let s = 0; s < 3; s++) {
+          const d = Math.hypot(u - S[s].x, v - S[s].y) * 5;
+          wave += Math.sin(d - t * 2.4 + s * 1.1) / (1 + d * d * 0.5);
+        }
+        wave /= 3;
+        const m = fbm(u * 2, v * 2 + t * 0.05, 3);
+        const p = (0.3 * (u + v) + wave * 0.28 + t * 0.02 + m * 0.15) % 1;
+        emit(i, p, 0.3 + (0.5 + 0.5 * wave) * 0.6 * (1 - v * 0.4));
+      }
+    }
+  }};
+
+  /* ── 9 · Morph Field — two soft sine grids folding over each other ── */
+  FX.morph = { frame(t) {
+    for (let y = 0, i = 0; y < H; y++) {
+      const v = y / H;
+      for (let x = 0; x < W; x++, i += 4) {
+        const u = x / W;
+        const fx = 0.5 + 0.5 * Math.sin(u * 6 + t * 0.3 + Math.sin(v * 4 + t * 0.18) * 1.4);
+        const fy = 0.5 + 0.5 * Math.sin(v * 6 - t * 0.22 + Math.sin(u * 4 + t * 0.15) * 1.4);
+        const p = (fx * 0.7 + fy * 0.35 + t * 0.02) % 1;
+        const k = 0.26 + (0.5 + 0.5 * Math.sin(u * 7 - t * 0.4)) * 0.4
+                + (0.5 + 0.5 * Math.sin(v * 7 + t * 0.3)) * 0.34;
+        emit(i, p, k);
+      }
+    }
+  }};
+
+  /* ── 10 · Tidal Drift — slow horizontal tide with vertical swell ── */
+  FX.tide = { frame(t) {
+    for (let y = 0, i = 0; y < H; y++) {
+      const v = y / H;
+      for (let x = 0; x < W; x++, i += 4) {
+        const u = x / W;
+        const m = fbm(u * 2.2, v * 2.2 + t * 0.045, 3);
+        const p = (u * 1.1 + t * 0.045 + Math.sin(v * 3 + t * 0.15) * 0.15 + m * 0.22) % 1;
+        const b = Math.pow(0.5 + 0.5 * Math.sin(v * 4 - t * 0.35 + u * 3), 1.6);
+        emit(i, p, 0.25 + b * 0.75 * (1.05 - v * 0.4));
+      }
+    }
+  }};
+
+  /* ── 11 · Center Pulse — radial heartbeat from the middle ── */
+  FX.pulse = { frame(t) {
+    for (let y = 0, i = 0; y < H; y++) {
+      const v = y / H;
+      for (let x = 0; x < W; x++, i += 4) {
+        const u = x / W;
+        const rx = u - 0.5, ry = v - 0.5;
+        const r = Math.hypot(rx, ry);
+        const m = fbm(u * 2, v * 2 + t * 0.05, 3);
+        const sf = Math.min(1, r * 5); // angular term fades near the core (anti-alias)
+        // cut-free angle: sin(2a) from unit vector (no atan2 branch cut)
+        const cr = Math.max(1e-9, r), ca = rx / cr, sa = ry / cr;
+        const sin2 = 2 * sa * ca, cos2 = ca * ca - sa * sa;
+        const ph = t * 0.3;
+        const wa = 0.5 + 0.5 * (sin2 * Math.cos(ph) + cos2 * Math.sin(ph));
+        const p = (r * 2 + t * 0.1 + wa * 0.3 * sf + m * 0.15) % 1;
+        emit(i, p, 0.28 + (0.5 + 0.5 * Math.cos(r * 7 - t * 1.4)) * 0.62 * Math.exp(-r * 2.1));
+      }
+    }
+  }};
 
   /* ---------- render loop (pauses when hidden / reduced motion) ---------- */
   function fitFx() {
@@ -178,35 +382,39 @@
       fxCanvas.width = innerWidth; fxCanvas.height = innerHeight;
     }
   }
-  let t0 = null, lastT = 0;
   function fxFrame(ts) {
-    if (!reduceMotion && !document.hidden) {
-      if (t0 === null) t0 = ts - lastT;
-      const t = (ts - t0) / 1000;
-      renderCurtains(t);
+    if (activeFx && !reduceMotion && !document.hidden) {
+      if (fxT0 === null) fxT0 = ts - lastFxT;
+      const t = (ts - fxT0) / 1000;
+      FX[activeFx].frame(t);
       pctx.putImageData(idata, 0, 0);
       fitFx();
       fxCtx.imageSmoothingEnabled = true;
       fxCtx.drawImage(pixel, 0, 0, innerWidth, innerHeight);
-      lastT = t * 1000;
+      lastFxT = t * 1000;
     }
     requestAnimationFrame(fxFrame);
   }
-  if (reduceMotion) {
-    renderCurtains(0);
+  function drawFxOnce(name) {
+    const f = FX[name];
+    if (!f) return;
+    f.frame(0);
     pctx.putImageData(idata, 0, 0);
     fitFx();
+    fxCtx.imageSmoothingEnabled = true;
     fxCtx.drawImage(pixel, 0, 0, innerWidth, innerHeight);
+  }
+
+  if (reduceMotion) {
+    requestAnimationFrame(function idle() {
+      if (activeFx && pendingFxFrame) { drawFxOnce(activeFx); pendingFxFrame = false; }
+      requestAnimationFrame(idle);
+    });
   } else {
     requestAnimationFrame(fxFrame);
   }
   addEventListener('resize', () => {
-    if (reduceMotion) {
-      renderCurtains(0);
-      pctx.putImageData(idata, 0, 0);
-      fitFx();
-      fxCtx.drawImage(pixel, 0, 0, innerWidth, innerHeight);
-    }
+    if (reduceMotion && activeFx) drawFxOnce(activeFx);
   });
 </script>
 </body>
